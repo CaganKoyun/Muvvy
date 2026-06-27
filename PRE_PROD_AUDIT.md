@@ -14,9 +14,11 @@
 
 ### 🚨 Prod'u durduran bulgular (BLOCKER)
 
+> ⚠️ **DÜZELTME (2026-06-27, sonraki denetim turunda):** Aşağıdaki **C-1 GERİ ÇEKİLDİ — yanlış pozitifti.** Silinen 5 trigger **duplicate**'ti; aynı fonksiyonları çağıran orijinal trigger'lar (`on_friend_accept`, `trg_friend_accept`, `trg_messages_bump_conv`, `trg_friend_request_responded_at`, `trg_match_promote`, `trg_match_decision_guard`) hiç silinmedi. Migration `100559` duplicate yarattı, `100624` sadece onları düşürdü → taze DB'de friend-accept, chat sıralaması, cooldown, match **hepsi çalışır.** (İlk turda sadece *silinen trigger adları* arandı; fonksiyon izlenince yakalandı — bkz. `PRE_PROD_AUDIT_UX_SCALE.md`.) Gerçek blocker'lar C-2/C-3/C-4'tür.
+
 | # | Başlık | Alan | Etki |
 |---|--------|------|------|
-| **C-1** | 5 çekirdek trigger migration ile silinmiş, yeniden oluşturulmamış | DB | Temiz DB'de arkadaş kabulü (RPC yolu) friendship satırı oluşturmuyor, sohbet sıralaması & cooldown bozuk |
+| ~~**C-1**~~ | ~~5 çekirdek trigger migration ile silinmiş~~ → **GERİ ÇEKİLDİ (false positive)** | DB | Trigger'lar duplicate'ti; orijinaller yaşıyor, akışlar çalışıyor |
 | **C-2** | `friendships` tablosuna self-insert RLS açığı | Güvenlik | Saldırgan tek satırla istediği kullanıcıyla "arkadaş" olup tüm friends-tier özel veriye erişir — "Sovereignty" sözünü çürütür |
 | **C-3** | `send-transactional-email`: kimlik doğrulamasız, herhangi bir adrese Muvvy markalı e-posta gönderimi | Edge API | Phishing/spam, gönderen itibarı (sender reputation) hasarı |
 | **C-4** | AI uçları kimlik doğrulamasız & kotasız → sınırsız LLM maliyeti | Edge API | Denial-of-wallet; public anon key ile sömürülebilir |
@@ -119,15 +121,16 @@ Secret sızıntısı yok (service-role/TMDB/LOVABLE key client'a dönmüyor, log
 
 ## 2. Fonksiyonel Doğruluk
 
-#### 🔴 C-1 [CRITICAL] Migration 5 çekirdek trigger'ı siler, yeniden oluşturmaz
-- **Kanıt:** `supabase/migrations/20260626100624_...sql` (tüm dosya) yalnızca `DROP TRIGGER IF EXISTS` içerir: `trg_handle_friend_accept`, `trg_set_friend_request_responded_at`, `trg_bump_conversation_last_message`, `trg_promote_match_suggestion`, `trg_guard_match_decision`. Bunlar bir önceki migration `...100559.sql:4-31`'de oluşturulmuş; **sonraki hiçbir migration yeniden oluşturmuyor** (elle doğrulandı — sonraki trigger'lar sadece audit/watching-status/co-watch).
-- **Temiz migrate edilmiş DB'de kırılan:**
-  - **Friendship asla otomatik oluşmaz:** `send_friend_request` reverse-accept yolu `trg_handle_friend_accept`'e bağlı. Trigger yoksa kabul edilmiş `friend_requests` satırı oluşur ama **0 `friendships`** satırı → kullanıcılar gerçekte arkadaş olmaz. (UI'daki accept butonu `use-friends.ts:123-127`'deki savunmacı client insert sayesinde çalışır; ama eşzamanlı/RPC yolunda friendship kaybolur → aralıklı, fark edilmesi zor bug.)
-  - **`conversations.last_message_at` asla güncellenmez** → `useConversations` `last_message_at`'e göre sıralar (`use-chat.ts:75`); yeni mesaj thread'i öne almaz.
-  - **`responded_at` asla damgalanmaz** → 14 günlük cooldown sessizce devre dışı.
-  - Match-suggestion promote/guard ölü.
-- **Test kanıtı:** `src/__tests__/friend-request-concurrency.test.ts` tam bu trigger'ı sınar (RPC'den 2 friendship satırı bekler) → migrate edilmiş şemaya karşı çalıştırılırsa **FAIL** eder. (Env-gated olduğundan muhtemelen CI'da çalışmıyor — doğrula.)
-- **Fix:** Beş trigger'ı yeni bir migration'da yeniden oluştur (`...100559.sql`'den kopyala) veya hatalı DROP-only dosyayı kaldır. Migrate sonrası trigger varlığını assert eden smoke test ekle + iki `__tests__` testini CI'a al. **En yüksek öncelik.**
+#### ~~🔴 C-1 [CRITICAL] Migration 5 çekirdek trigger'ı siler~~ → ❌ GERİ ÇEKİLDİ (FALSE POSITIVE)
+> **Düzeltme (sonraki denetim turunda, elle doğrulandı):** Bu bulgu **yanlıştı.** `20260626100624` migration'ının düşürdüğü 5 trigger (`trg_handle_friend_accept`, `trg_set_friend_request_responded_at`, `trg_bump_conversation_last_message`, `trg_promote_match_suggestion`, `trg_guard_match_decision`) **duplicate**'ti — `100559` migration'ında oluşturulmuş kopyalar. Aynı fonksiyonları çağıran **orijinal trigger'lar farklı adlarla yaşıyor ve hiç silinmiyor:**
+> - `handle_friend_accept()` → `on_friend_accept` (`...220705.sql:49`) + `trg_friend_accept` (`...134339.sql:10`) — ikisi de yaşıyor (idempotent `ON CONFLICT DO NOTHING`).
+> - `set_friend_request_responded_at()` → `trg_friend_request_responded_at` (`...626084059.sql:30`) — yaşıyor.
+> - bump last_message → `trg_messages_bump_conv` (`...084646.sql:161`) — yaşıyor.
+> - match promote/guard → `trg_match_promote` / `trg_match_decision_guard` (`...084646.sql:271,232`) — yaşıyor.
+>
+> **Net sonuç: taze migrate edilmiş DB'de friend-accept, `conversations.last_message_at` sıralaması, `responded_at` cooldown'u ve match promote/guard HEPSİ çalışır.** `friend-request-concurrency.test.ts` de PASS eder. `100559`'un duplicate yaratıp `100624`'ün onları düşürmesi zararsız migration churn'ü (aslında çift-tetiklemeyi önlediği için faydalı).
+>
+> **Neden ilk turda kaçırıldı:** hem ben hem ilgili agent yalnızca *silinen trigger adlarını* aradık, aynı fonksiyona bağlı kardeş trigger'ları değil. Chat-surface denetimi fonksiyonu izleyince yakaladı. (Adversarial cross-check'in değeri.) — Detay: `PRE_PROD_AUDIT_UX_SCALE.md` "Düzeltmeler".
 
 #### 🔴 C-2f [CRITICAL] Sohbet mesajı optimistic-insert yok; realtime gelene kadar görünmüyor
 - **Kanıt:** `use-chat.ts:219-247` (`useSendMessage`) — `onMutate` yok, `["messages", conversationId]` invalidate edilmiyor (`:244`). `ChatThreadView.tsx:225,240` `optimistic-` id'li mesajı render eder ama **hiçbir yer onu üretmiyor** (ölü kod). Gönderilen mesaj yalnızca realtime INSERT geldiğinde (`:189-197`) görünür; realtime yavaş/kapalıysa kendi mesajın hiç görünmez.
@@ -138,7 +141,7 @@ Secret sızıntısı yok (service-role/TMDB/LOVABLE key client'a dönmüyor, log
 - **Fix:** `UNIQUE(user_id, tmdb_id)` + `.upsert(..., { onConflict })`.
 
 #### 🟠 High
-- **H-1** `use-friends.ts:123-134` — accept sonrası friendship+notification insert'leri **error kontrolsüz fire-and-forget**; başarısız olursa UI "kabul edildi" der ama hiçbir şey oluşmaz (C-1 ile birleşince RPC yolunda tek mekanizma bu). `:116`'da status update'te `.eq("status","pending")` guard'ı yok → çift tap accept→reject zaten-kabul'ü çevirir.
+- **H-1** `use-friends.ts:123-134` — accept sonrası friendship+notification insert'leri **error kontrolsüz fire-and-forget**; başarısız olursa UI "kabul edildi" der ama hiçbir şey oluşmaz. `:116`'da status update'te `.eq("status","pending")` guard'ı yok → çift tap accept→reject zaten-kabul'ü çevirir. (Not: trigger'lar yaşadığı için friendship aslında trigger ile de oluşur; bu client insert artık redundant — yine de hatayı yutmamalı.)
 - **H-2** `use-polls.ts:74-77`, `use-predictions.ts:74-77` — düz `.insert()`, PK çakışması → "Oy verilemedi" (oy değiştirme yok, çift-tap generic hata). Realtime de yok → başkalarının sayıları bayat. (Ürün niyeti doğrulanmalı.)
 - **H-3** `PredictionCard.tsx:16-17` — `locked` yalnızca `status==="resolved"`'a bakar, `resolves_at`'e değil → deadline sonrası tahmin yapılabilir (PollCard `ends_at`'i doğru kontrol eder).
 - **H-4** `use-cached-movies.ts:65,97-120` — TMDB+DB ikisi de başarısızken fallback `null.map`/raw error fırlatır (resilience'in tersi). `res.results.slice()` null-guard yok.
@@ -211,8 +214,8 @@ Secret sızıntısı yok (service-role/TMDB/LOVABLE key client'a dönmüyor, log
 ## 5. Öncelikli Aksiyon Listesi
 
 ### Prod öncesi ZORUNLU (BLOCKER)
-1. **C-1** — Silinen 5 trigger'ı yeniden oluştur (`...100559.sql`'den) + migrate-smoke test + `__tests__`'i CI'a al.
-2. **C-2** — `friendships` client INSERT policy/grant'ını kaldır; yazımı yalnızca trigger/RPC'ye bırak.
+1. ~~**C-1** — Silinen 5 trigger'ı yeniden oluştur~~ → **GERİ ÇEKİLDİ (false positive — trigger'lar yaşıyor).**
+2. **C-2** — `friendships` client INSERT policy/grant'ını kaldır; yazımı yalnızca trigger/RPC'ye bırak. **(Gerçek 1 numaralı DB blocker'ı.)**
 3. **C-3** — `send-transactional-email`'e service-role/`requireUser` + recipient sahiplik kontrolü.
 4. **C-4** — Generatif AI uçlarına auth + per-user/gün kota; `x-forwarded-for` kimlik kullanımını kaldır.
 5. **Build H1/H2** — `public/_headers` + CSP; `.env`'i gitignore'a al.
