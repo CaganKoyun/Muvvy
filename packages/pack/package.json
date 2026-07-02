@@ -1,0 +1,21 @@
+{
+  "name": "@grid/pack",
+  "version": "0.1.0",
+  "description": "W3C MiniApp Packaging — miniapp-pkg+zip üretimi, içerik hash'i ve ed25519 dijital imza",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@grid/manifest": "workspace:*",
+    "fflate": "^0.8.2"
+  }
+}

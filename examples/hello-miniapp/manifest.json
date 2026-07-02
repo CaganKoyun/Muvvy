@@ -1,0 +1,27 @@
+{
+  "dir": "ltr",
+  "lang": "tr-TR",
+  "app_id": "com.grid.hello",
+  "name": "Hello GRID",
+  "short_name": "Hello",
+  "description": "Bir kez yazılan, capability detection ile her host'a uyum sağlayan örnek MiniApp.",
+  "icons": [{ "src": "icons/app.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "version": { "name": "1.0.0", "code": 1 },
+  "platform_version": { "min_code": 1 },
+  "pages": ["pages/home", "pages/profile"],
+  "window": { "background_color": "#000000", "orientation": "portrait" },
+  "req_permissions": [
+    { "name": "payment", "reason": "Destek ödemesi almak için" },
+    { "name": "storage", "reason": "Tema tercihinizi hatırlamak için" }
+  ],
+  "color_scheme": "dark",
+  "x-grid": {
+    "targets": ["spark", "world"],
+    "category": "general",
+    "monetization": "free",
+    "capabilities": {
+      "required": [],
+      "optional": ["identity.kyc", "identity.proof_of_personhood", "pay.native"]
+    }
+  }
+}

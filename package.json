@@ -1,0 +1,26 @@
+{
+  "name": "grid",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GRID — App2App2User dağıtım şebekesi. W3C MiniApp tabanlı paketleme, sertifikasyon, federasyon ve runtime katmanı.",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@grid/cert": "workspace:*",
+    "@grid/cli": "workspace:*",
+    "@grid/manifest": "workspace:*",
+    "@grid/pack": "workspace:*",
+    "@grid/registry": "workspace:*",
+    "@grid/runtime": "workspace:*",
+    "@grid/sdk": "workspace:*",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

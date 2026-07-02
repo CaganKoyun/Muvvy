@@ -1,0 +1,23 @@
+{
+  "name": "@grid/runtime",
+  "version": "0.1.0",
+  "description": "GRID MiniApp Runtime — host tarafı: imza doğrulama, sandbox bridge, adapter arayüzü, identity broker, kill-switch",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@grid/cert": "workspace:*",
+    "@grid/manifest": "workspace:*",
+    "@grid/pack": "workspace:*",
+    "@grid/sdk": "workspace:*"
+  }
+}
