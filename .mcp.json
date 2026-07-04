@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "worldcoin-developer-portal": {
+      "type": "http",
+      "url": "https://developer.world.org/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${WORLDCOIN_API_KEY}"
+      }
+    }
+  }
+}
