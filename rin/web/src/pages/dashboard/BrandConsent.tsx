@@ -1,58 +1,40 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
+import { db } from '../../db';
 import { Button, Card, Field, Input, PageTitle, Spinner, Badge } from '../../components/ui';
-
-const SCOPES = [
-  { key: 'profile:email', label: 'Email address' },
-  { key: 'profile:phone', label: 'Phone number' },
-  { key: 'profile:name', label: 'Full name' },
-  { key: 'profile:birthday', label: 'Birthday' },
-  { key: 'profile:gender', label: 'Gender' },
-  { key: 'profile:address', label: 'Address' },
-  { key: 'permission:marketing', label: 'Marketing' },
-  { key: 'permission:sms', label: 'SMS' },
-  { key: 'permission:location', label: 'Location' },
-  { key: 'permission:analytics', label: 'Analytics' },
-];
 
 type Sel = { on: boolean; required: boolean };
 
 export default function BrandConsent() {
-  const [branding, setBranding] = useState({ displayName: '', logoUrl: '', primaryColor: '#4f46e5', postConsentRedirectUrl: '' });
+  const [branding, setBranding] = useState({ display_name: '', logo_url: '', primary_color: '#4f46e5', post_consent_redirect_url: '' });
+  const [scopes, setScopes] = useState<any[]>([]);
   const [sel, setSel] = useState<Record<string, Sel>>({});
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState('');
 
   useEffect(() => {
     (async () => {
-      const [me, cfg] = await Promise.all([
-        api.m('GET', '/v1/merchant/me'),
-        api.m('GET', '/v1/merchant/consent-config'),
-      ]);
+      const [me, sc, cfg] = await Promise.all([db.myMerchant(), db.scopes(), db.consentConfig()]);
       setBranding({
-        displayName: me.branding?.displayName ?? me.name ?? '',
-        logoUrl: me.branding?.logoUrl ?? '',
-        primaryColor: me.branding?.primaryColor ?? '#4f46e5',
-        postConsentRedirectUrl: me.branding?.postConsentRedirectUrl ?? '',
+        display_name: me?.display_name ?? me?.name ?? '',
+        logo_url: me?.logo_url ?? '',
+        primary_color: me?.primary_color ?? '#4f46e5',
+        post_consent_redirect_url: me?.post_consent_redirect_url ?? '',
       });
+      setScopes(sc);
       const map: Record<string, Sel> = {};
-      for (const s of SCOPES) map[s.key] = { on: false, required: false };
-      for (const f of cfg.fields ?? []) map[f.scopeKey] = { on: true, required: f.required };
+      for (const s of sc) map[s.key] = { on: false, required: false };
+      for (const f of cfg) map[f.scope_key] = { on: true, required: f.required };
       setSel(map);
       setLoading(false);
     })().catch(() => setLoading(false));
   }, []);
 
-  async function saveBranding() {
-    await api.m('PUT', '/v1/merchant/branding', branding);
-    flash('Branding saved');
-  }
-  async function saveConsent() {
-    const fields = SCOPES.filter((s) => sel[s.key]?.on).map((s) => ({ scopeKey: s.key, required: !!sel[s.key].required }));
-    await api.m('PUT', '/v1/merchant/consent-config', { fields });
-    flash('Consent config saved');
-  }
   function flash(m: string) { setSaved(m); setTimeout(() => setSaved(''), 2000); }
+  async function saveBranding() { await db.updateBranding(branding); flash('Branding saved'); }
+  async function saveConsent() {
+    const fields = scopes.filter((s) => sel[s.key]?.on).map((s) => ({ scope_key: s.key, required: !!sel[s.key].required }));
+    await db.setConsentConfig(fields); flash('Consent config saved');
+  }
 
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
 
@@ -63,15 +45,15 @@ export default function BrandConsent() {
         <Card className="p-5">
           <h3 className="mb-4 font-semibold text-ink">Brand identity</h3>
           <div className="space-y-3">
-            <Field label="Display name"><Input value={branding.displayName} onChange={(e) => setBranding({ ...branding, displayName: e.target.value })} /></Field>
-            <Field label="Logo URL"><Input value={branding.logoUrl} onChange={(e) => setBranding({ ...branding, logoUrl: e.target.value })} placeholder="https://…" /></Field>
+            <Field label="Display name"><Input value={branding.display_name} onChange={(e) => setBranding({ ...branding, display_name: e.target.value })} /></Field>
+            <Field label="Logo URL"><Input value={branding.logo_url} onChange={(e) => setBranding({ ...branding, logo_url: e.target.value })} placeholder="https://…" /></Field>
             <Field label="Primary color">
               <div className="flex items-center gap-2">
-                <input type="color" value={branding.primaryColor} onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })} className="h-9 w-12 rounded border border-slate-300" />
-                <Input value={branding.primaryColor} onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })} />
+                <input type="color" value={branding.primary_color} onChange={(e) => setBranding({ ...branding, primary_color: e.target.value })} className="h-9 w-12 rounded border border-slate-300" />
+                <Input value={branding.primary_color} onChange={(e) => setBranding({ ...branding, primary_color: e.target.value })} />
               </div>
             </Field>
-            <Field label="Post-consent redirect (your app / loyalty)"><Input value={branding.postConsentRedirectUrl} onChange={(e) => setBranding({ ...branding, postConsentRedirectUrl: e.target.value })} placeholder="https://app.brand.com/welcome" /></Field>
+            <Field label="Post-consent redirect (your app / loyalty)"><Input value={branding.post_consent_redirect_url} onChange={(e) => setBranding({ ...branding, post_consent_redirect_url: e.target.value })} placeholder="https://app.brand.com/welcome" /></Field>
           </div>
           <Button className="mt-4" onClick={saveBranding}>Save branding</Button>
         </Card>
@@ -79,7 +61,7 @@ export default function BrandConsent() {
         <Card className="p-5">
           <h3 className="mb-4 font-semibold text-ink">Consent Engine — requested fields</h3>
           <div className="space-y-1">
-            {SCOPES.map((s) => {
+            {scopes.map((s) => {
               const v = sel[s.key] ?? { on: false, required: false };
               return (
                 <div key={s.key} className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-slate-50">

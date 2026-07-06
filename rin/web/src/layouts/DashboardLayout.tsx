@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Wordmark, Button } from '../components/ui';
-import { auth } from '../auth';
+import { useAuth } from '../AuthContext';
 
 const nav = [
   { to: '/dashboard', label: 'Overview', end: true },
@@ -10,10 +10,12 @@ const nav = [
   { to: '/dashboard/customers', label: 'Customers' },
   { to: '/dashboard/integrations', label: 'Integrations' },
   { to: '/dashboard/campaigns', label: 'Campaigns' },
+  { to: '/dashboard/malls', label: 'Malls' },
 ];
 
 export function DashboardLayout() {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white p-4 md:flex">
@@ -41,8 +43,8 @@ export function DashboardLayout() {
           <Button
             variant="ghost"
             className="w-full"
-            onClick={() => {
-              auth.clearMerchant();
+            onClick={async () => {
+              await signOut();
               navigate('/dashboard/login');
             }}
           >

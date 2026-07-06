@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
+import { db } from '../../db';
 import { Badge, Button, Card, Field, Input, PageTitle } from '../../components/ui';
 
 export default function Campaigns() {
@@ -8,12 +8,12 @@ export default function Campaigns() {
   const [body, setBody] = useState('');
   const [result, setResult] = useState<any>(null);
 
-  async function load() { const r = await api.m('GET', '/v1/campaigns'); setList(r.campaigns ?? []); }
+  async function load() { setList(await db.campaigns()); }
   useEffect(() => { load(); }, []);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
-    const r = await api.m('POST', '/v1/campaigns', { title, body: body || undefined });
+    const r = await db.sendCampaign(title, body || undefined);
     setResult(r); setTitle(''); setBody(''); await load();
   }
 
@@ -38,11 +38,8 @@ export default function Campaigns() {
             <ul className="divide-y divide-slate-100">
               {list.map((c) => (
                 <li key={c.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <div className="font-medium text-ink">{c.title}</div>
-                    <div className="text-xs text-slate-400">{c.body}</div>
-                  </div>
-                  <Badge tone="green">{c.deliveredCount} sent</Badge>
+                  <div><div className="font-medium text-ink">{c.title}</div><div className="text-xs text-slate-400">{c.body}</div></div>
+                  <Badge tone="green">{c.delivered_count} sent</Badge>
                 </li>
               ))}
             </ul>

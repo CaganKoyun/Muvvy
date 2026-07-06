@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
+import { db } from '../../db';
 import { Badge, Card, PageTitle, Stat, Spinner } from '../../components/ui';
 
 export default function Overview() {
@@ -10,15 +10,8 @@ export default function Overview() {
 
   useEffect(() => {
     (async () => {
-      const [me, d, cs] = await Promise.all([
-        api.m('GET', '/v1/merchant/me'),
-        api.m('GET', '/v1/merchant/dashboard'),
-        api.m('GET', '/v1/customers'),
-      ]);
-      setBrand(me);
-      setDash(d);
-      setCustomers(cs.customers ?? []);
-      setLoading(false);
+      const [me, d, cs] = await Promise.all([db.myMerchant(), db.dashboard(), db.customers()]);
+      setBrand(me); setDash(d); setCustomers(cs ?? []); setLoading(false);
     })().catch(() => setLoading(false));
   }, []);
 
@@ -26,7 +19,7 @@ export default function Overview() {
 
   return (
     <div>
-      <PageTitle title={`Welcome, ${brand?.branding?.displayName || brand?.name || 'Brand'}`} subtitle="Live overview of your Spark identity network." />
+      <PageTitle title={`Welcome, ${brand?.display_name || brand?.name || 'Brand'}`} subtitle="Live overview of your Spark identity network." />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="New members" value={dash?.newMembers ?? 0} />
         <Stat label="Consent rate" value={`${Math.round((dash?.consentRate ?? 0) * 100)}%`} />
@@ -41,13 +34,11 @@ export default function Overview() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {customers.map((c) => (
-              <li key={c.grantId} className="flex items-center justify-between px-5 py-3">
+              <li key={c.grant_id} className="flex items-center justify-between px-5 py-3">
                 <div>
-                  <div className="font-mono text-xs text-slate-500">#{c.grantId.slice(0, 8)}</div>
+                  <div className="font-mono text-xs text-slate-500">#{String(c.grant_id).slice(0, 8)}</div>
                   <div className="mt-0.5 flex flex-wrap gap-1">
-                    {c.grantedScopes.map((s: string) => (
-                      <Badge key={s} tone="indigo">{s.split(':')[1]}</Badge>
-                    ))}
+                    {(c.granted_scopes ?? []).map((s: string) => <Badge key={s} tone="indigo">{s.split(':')[1]}</Badge>)}
                   </div>
                 </div>
                 <Badge tone={c.status === 'active' ? 'green' : 'rose'}>{c.status}</Badge>

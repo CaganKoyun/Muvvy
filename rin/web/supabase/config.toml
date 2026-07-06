@@ -1,0 +1,7 @@
+project_id = "spark-rin"
+
+[functions.pos-request]
+verify_jwt = false
+
+[functions.sync-primary]
+verify_jwt = false

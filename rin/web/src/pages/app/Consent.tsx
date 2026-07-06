@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../../api';
-import { auth } from '../../auth';
+import { db } from '../../db';
+import { useAuth } from '../../AuthContext';
 import { Button, Card, Spinner, SparkMark, Badge } from '../../components/ui';
 
 export default function Consent() {
   const { token } = useParams();
   const navigate = useNavigate();
+  const { session, loading: authLoading } = useAuth();
   const [view, setView] = useState<any>(null);
   const [granted, setGranted] = useState<Record<string, boolean>>({});
   const [err, setErr] = useState('');
@@ -14,32 +15,28 @@ export default function Consent() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!auth.consumerToken()) {
-      navigate(`/app/login?next=/app/consent/${token}`, { replace: true });
-      return;
-    }
-    api.c('GET', `/v1/consent/requests/${token}`).then((v) => {
+    if (authLoading) return;
+    if (!session) { navigate(`/app/login?next=/app/consent/${token}`, { replace: true }); return; }
+    db.consentRequest(token!).then((v) => {
       setView(v);
       const g: Record<string, boolean> = {};
-      for (const s of v.requested) g[s.key] = v.requiredScopes.includes(s.key);
+      for (const s of v.requested) g[s.key] = v.required_scopes.includes(s.key);
       setGranted(g);
     }).catch((e) => setErr(e.message));
-  }, [token]);
+  }, [authLoading, session, token]);
 
-  const brandColor = view?.brand?.primaryColor || '#4f46e5';
+  const brandColor = view?.brand?.primary_color || '#4f46e5';
   const selected = useMemo(() => Object.keys(granted).filter((k) => granted[k]), [granted]);
 
   async function approve() {
     setBusy(true); setErr('');
-    try {
-      const res = await api.c('POST', `/v1/consent/requests/${token}/approve`, { grantedScopes: selected });
-      setDone(res);
-    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+    try { setDone(await db.approve(token!, selected)); }
+    catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
-  async function deny() { await api.c('POST', `/v1/consent/requests/${token}/deny`).catch(() => {}); navigate('/app'); }
+  async function deny() { await db.deny(token!).catch(() => {}); navigate('/app'); }
 
+  if (authLoading || (!view && !err)) return <div className="flex min-h-screen items-center justify-center"><Spinner /></div>;
   if (err && !view) return <div className="flex min-h-screen items-center justify-center p-6 text-sm text-rose-600">{err}</div>;
-  if (!view) return <div className="flex min-h-screen items-center justify-center"><Spinner /></div>;
 
   if (done) {
     return (
@@ -60,22 +57,20 @@ export default function Consent() {
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
       <Card className="w-full max-w-sm overflow-hidden">
-        {/* Branded header */}
         <div className="px-6 py-6 text-center text-white" style={{ background: brandColor }}>
-          {view.brand.logoUrl ? (
-            <img src={view.brand.logoUrl} alt={view.brand.name} className="mx-auto h-12 w-12 rounded-xl bg-white object-contain p-1" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+          {view.brand.logo_url ? (
+            <img src={view.brand.logo_url} alt={view.brand.name} className="mx-auto h-12 w-12 rounded-xl bg-white object-contain p-1" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
           ) : (
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white"><SparkMark color={brandColor} /></div>
           )}
           <h1 className="mt-3 text-lg font-semibold">{view.brand.name}</h1>
           {view.branch && <p className="text-sm opacity-90">{view.branch.name}</p>}
         </div>
-
         <div className="p-6">
           <p className="text-sm text-slate-500">wants to connect with your Spark identity and access:</p>
           <div className="mt-4 space-y-1">
             {view.requested.map((s: any) => {
-              const req = view.requiredScopes.includes(s.key);
+              const req = view.required_scopes.includes(s.key);
               return (
                 <label key={s.key} className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-slate-50">
                   <span className="text-sm text-slate-700">{s.label} {req && <Badge tone="slate">required</Badge>}</span>

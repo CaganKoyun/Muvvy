@@ -1,4 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useAuth } from './AuthContext';
+import { Spinner } from './components/ui';
 import Landing from './pages/Landing';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { AppLayout } from './layouts/AppLayout';
@@ -10,17 +12,30 @@ import QrGenerator from './pages/dashboard/QrGenerator';
 import Customers from './pages/dashboard/Customers';
 import Integrations from './pages/dashboard/Integrations';
 import Campaigns from './pages/dashboard/Campaigns';
+import Malls from './pages/dashboard/Malls';
 import AppLogin from './pages/app/Login';
 import Connected from './pages/app/Connected';
 import Consent from './pages/app/Consent';
 import Wallet from './pages/app/Wallet';
-import { auth } from './auth';
+import Notifications from './pages/app/Notifications';
+import Profile from './pages/app/Profile';
 
-function RequireMerchant({ children }: { children: JSX.Element }) {
-  return auth.merchantToken() ? children : <Navigate to="/dashboard/login" replace />;
+function Splash() {
+  return <div className="flex min-h-screen items-center justify-center"><Spinner /></div>;
+}
+function RequireBrand({ children }: { children: JSX.Element }) {
+  const { session, role, loading } = useAuth();
+  if (loading) return <Splash />;
+  if (!session) return <Navigate to="/dashboard/login" replace />;
+  if (role !== 'brand') return <Navigate to="/app" replace />;
+  return children;
 }
 function RequireConsumer({ children }: { children: JSX.Element }) {
-  return auth.consumerToken() ? children : <Navigate to="/app/login" replace />;
+  const { session, role, loading } = useAuth();
+  if (loading) return <Splash />;
+  if (!session) return <Navigate to="/app/login" replace />;
+  if (role === 'brand') return <Navigate to="/dashboard" replace />;
+  return children;
 }
 
 export default function App() {
@@ -28,16 +43,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
 
-      {/* Brand dashboard */}
       <Route path="/dashboard/login" element={<DashLogin />} />
-      <Route
-        path="/dashboard"
-        element={
-          <RequireMerchant>
-            <DashboardLayout />
-          </RequireMerchant>
-        }
-      >
+      <Route path="/dashboard" element={<RequireBrand><DashboardLayout /></RequireBrand>}>
         <Route index element={<Overview />} />
         <Route path="branches" element={<Branches />} />
         <Route path="brand" element={<BrandConsent />} />
@@ -45,21 +52,16 @@ export default function App() {
         <Route path="customers" element={<Customers />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="campaigns" element={<Campaigns />} />
+        <Route path="malls" element={<Malls />} />
       </Route>
 
-      {/* Consumer app */}
       <Route path="/app/login" element={<AppLogin />} />
       <Route path="/app/consent/:token" element={<Consent />} />
-      <Route
-        path="/app"
-        element={
-          <RequireConsumer>
-            <AppLayout />
-          </RequireConsumer>
-        }
-      >
+      <Route path="/app" element={<RequireConsumer><AppLayout /></RequireConsumer>}>
         <Route index element={<Connected />} />
         <Route path="wallet" element={<Wallet />} />
+        <Route path="notifications" element={<Notifications />} />
+        <Route path="profile" element={<Profile />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
