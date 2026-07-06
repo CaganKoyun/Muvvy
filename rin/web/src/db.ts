@@ -54,6 +54,10 @@ export const db = {
     const { data } = await supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(50);
     return data ?? [];
   },
+  myMemberships: () => rpc<any[]>('my_memberships'),
+  exportMyData: () => rpc('export_my_data'),
+  revokeAll: () => rpc('revoke_all_consents'),
+  eraseMyData: () => rpc('delete_my_data'),
   async myMalls() {
     const grants = await rpc<any[]>('my_connected_brands');
     if (!grants?.length) return [];
