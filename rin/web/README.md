@@ -39,11 +39,33 @@ src/                       React app (Vite + TS + Tailwind)
   pages/app/*              shopper: continue-with-spark, branded consent, brands,
                            wallet, alerts, profile & transparency
 supabase/
-  migrations/              0001 schema · 0002 RLS + RPCs · 0003 extra RPCs
-  functions/               pos-request, sync-primary, _shared
+  migrations/              0001 schema · 0002 RLS+RPCs · 0003 extra RPCs ·
+                           0004 branch-on-grant · 0005 roles/team/signup ·
+                           0006 user-side (prefs, KVKK export/erase) ·
+                           0007 billing (plans/usage/credits) · 0008 auto-sync
+  functions/               pos-request, sync-primary, process-syncs,
+                           create-checkout, _shared
   seed.sql                 demo brand + branch + branding + shopper
   config.toml
 ```
+
+### Beyond the core
+
+- **Roles & team** (`0005`) — owner/admin/branch_manager/staff, branch scoping,
+  email invites (create/accept/revoke), admin-gated actions, **brand self-signup**
+  (`create_brand`). A branch_manager sees only their branch's customers.
+- **Signup branch on the grant** (`0004`) — the brand sees, per member, **which
+  store & branch** they joined at, next to the consented data.
+- **User-side** (`0006`) — notification preferences, **KVKK/GDPR** data export &
+  erasure (`export_my_data` / `delete_my_data`), revoke-all, memberships.
+- **Pricing & credits** (`0007`) — plans (Starter/Growth/Enterprise), per-identity
+  usage metering, `billing_summary`, `change_plan`; Stripe checkout scaffold.
+- **Automatic data sync** (`0008`) — per-connector **field mapping**, a trigger
+  that enqueues a normalized record into `connector_sync_logs` on every grant
+  change, and `process-syncs` to deliver (HMAC) with retry/DLQ.
+
+Every migration was applied to Postgres 16 and its RPCs exercised with simulated
+authenticated users (RLS on). The React app builds clean and maps 1:1 to them.
 
 ## Run it
 
