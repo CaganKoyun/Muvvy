@@ -9,6 +9,9 @@ import { ProblemDetailsFilter } from './common/errors/problem.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
 
+  // Allow the web dashboard / consumer app (any origin in this MVP) to call the API.
+  app.enableCors({ origin: true, credentials: true });
+
   // OAuth2 token endpoint accepts form-urlencoded as well as JSON.
   app.use(express.urlencoded({ extended: true }));
   // CSV import endpoints receive a raw text body.

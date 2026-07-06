@@ -7,6 +7,7 @@ import { SCOPES } from '../common/scopes';
 
 export interface SeedResult {
   merchant: { id: string; name: string; slug: string; clientId: string; clientSecret: string };
+  branch: { id: string; name: string; code: string };
   consumer: { id: string; email: string; password: string };
   mall: { id: string; name: string };
 }
@@ -24,6 +25,17 @@ export async function seed(app: INestApplicationContext): Promise<SeedResult> {
 
   const merchant = await merchants.create('LC Waikiki', 'lc-waikiki', 'fashion');
   const cred = await merchants.issueCredentials(merchant.id);
+  await merchants.updateBranding(merchant.id, {
+    displayName: 'LC Waikiki',
+    logoUrl: 'https://logo.clearbit.com/lcwaikiki.com',
+    primaryColor: '#0057B8',
+    postConsentRedirectUrl: 'https://app.lcwaikiki.com/welcome',
+  });
+  const branch = await merchants.createBranch(merchant.id, {
+    name: 'LC Waikiki Akasya',
+    code: 'AKASYA',
+    city: 'İstanbul',
+  });
 
   // A mall the merchant participates in, so the mall dashboard has data.
   const mall = await malls.createMall('Akasya AVM', 'akasya', 'İstanbul');
@@ -57,6 +69,7 @@ export async function seed(app: INestApplicationContext): Promise<SeedResult> {
       clientId: cred.clientId,
       clientSecret: cred.clientSecret,
     },
+    branch: { id: branch.id, name: branch.name, code: branch.code },
     consumer: { id: consumer.id, email: consumer.email, password },
     mall: { id: mall.id, name: mall.name },
   };

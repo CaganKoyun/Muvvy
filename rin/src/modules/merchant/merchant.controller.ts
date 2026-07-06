@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MerchantService } from './merchant.service';
-import { SetConsentConfigDto } from './dto';
+import { SetConsentConfigDto, CreateBranchDto, UpdateBrandingDto } from './dto';
 import { MerchantGuard } from '../../common/auth/merchant.guard';
 import { CurrentMerchant } from '../../common/auth/current-user.decorator';
 import { MerchantPrincipal } from '../../common/auth/token.types';
@@ -24,7 +24,43 @@ export class MerchantController {
       slug: merchant.slug,
       category: merchant.category,
       status: merchant.status,
+      branding: {
+        displayName: merchant.displayName,
+        logoUrl: merchant.logoUrl,
+        primaryColor: merchant.primaryColor,
+        postConsentRedirectUrl: merchant.postConsentRedirectUrl,
+      },
     };
+  }
+
+  @Put('branding')
+  @ApiOperation({ summary: 'Update brand identity (logo, colour, post-consent redirect).' })
+  async setBranding(
+    @CurrentMerchant() principal: MerchantPrincipal,
+    @Body() dto: UpdateBrandingDto,
+  ) {
+    const m = await this.merchants.updateBranding(principal.id, dto);
+    return {
+      displayName: m.displayName,
+      logoUrl: m.logoUrl,
+      primaryColor: m.primaryColor,
+      postConsentRedirectUrl: m.postConsentRedirectUrl,
+    };
+  }
+
+  @Get('branches')
+  @ApiOperation({ summary: 'List this brand’s branches (şube).' })
+  async branches(@CurrentMerchant() principal: MerchantPrincipal) {
+    return { branches: await this.merchants.listBranches(principal.id) };
+  }
+
+  @Post('branches')
+  @ApiOperation({ summary: 'Add a branch to this brand.' })
+  async addBranch(
+    @CurrentMerchant() principal: MerchantPrincipal,
+    @Body() dto: CreateBranchDto,
+  ) {
+    return this.merchants.createBranch(principal.id, dto);
   }
 
   @Get('consent-config')

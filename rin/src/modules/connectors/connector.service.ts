@@ -17,6 +17,10 @@ export class ConnectorService {
   ) {}
 
   async create(merchantId: string, dto: CreateConnectorDto) {
+    // At most one primary solution per brand.
+    if (dto.isPrimary) {
+      await this.connectors.update({ merchantId }, { isPrimary: false });
+    }
     return this.connectors.save(
       this.connectors.create({
         merchantId,
@@ -24,8 +28,23 @@ export class ConnectorService {
         adapter: dto.adapter,
         name: dto.name,
         config: dto.config ?? null,
+        isPrimary: dto.isPrimary ?? false,
       }),
     );
+  }
+
+  /** Catalogue of tools a brand can connect from the dashboard. */
+  catalog() {
+    return CONNECTOR_CATALOG;
+  }
+
+  async setPrimary(merchantId: string, connectorId: string) {
+    const c = await this.connectors.findOne({ where: { id: connectorId, merchantId } });
+    if (!c) return { ok: false };
+    await this.connectors.update({ merchantId }, { isPrimary: false });
+    c.isPrimary = true;
+    await this.connectors.save(c);
+    return { ok: true, primaryConnectorId: c.id };
   }
 
   async list(merchantId: string) {
@@ -135,6 +154,21 @@ export class ConnectorService {
     return { receiptsImported: imported, groups: groups.size, errors };
   }
 }
+
+/** Tools a brand can pick from in the dashboard Integrations screen. */
+export const CONNECTOR_CATALOG = [
+  { key: 'salesforce', name: 'Salesforce', kind: 'crm', fields: ['apiKey', 'instanceUrl'] },
+  { key: 'hubspot', name: 'HubSpot', kind: 'crm', fields: ['apiKey'] },
+  { key: 'dynamics', name: 'Microsoft Dynamics', kind: 'crm', fields: ['apiKey', 'orgUrl'] },
+  { key: 'oracle_cx', name: 'Oracle CX', kind: 'crm', fields: ['apiKey', 'url'] },
+  { key: 'sap', name: 'SAP', kind: 'erp', fields: ['apiKey', 'url'] },
+  { key: 'logo', name: 'Logo', kind: 'erp', fields: ['apiKey', 'url'] },
+  { key: 'nebim', name: 'Nebim', kind: 'erp', fields: ['apiKey', 'url'] },
+  { key: 'ncr', name: 'NCR', kind: 'pos', fields: ['apiKey'] },
+  { key: 'ingenico', name: 'Ingenico', kind: 'pos', fields: ['apiKey'] },
+  { key: 'cloud_pos', name: 'Cloud POS', kind: 'pos', fields: ['apiKey', 'url'] },
+  { key: 'custom_rest', name: 'Custom REST', kind: 'crm', fields: ['url', 'apiKey'] },
+] as const;
 
 function normalize(event: DomainEvent): { operation: string; record: unknown } | null {
   const d = event.data as Record<string, any>;

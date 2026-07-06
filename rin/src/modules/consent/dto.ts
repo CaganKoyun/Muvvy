@@ -30,6 +30,11 @@ export class CreateIdentityRequestDto {
   @IsOptional()
   @IsString()
   reference?: string;
+
+  @ApiPropertyOptional({ description: 'The branch (şube) generating this QR.' })
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 }
 
 export class ApproveRequestDto {

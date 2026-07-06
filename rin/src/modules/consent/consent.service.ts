@@ -57,9 +57,13 @@ export class ConsentService {
       );
     }
 
+    // The branch (şube) that shows the QR, validated against the brand.
+    if (dto.branchId) await this.merchants.requireBranch(merchantId, dto.branchId);
+
     const request = await this.requests.save(
       this.requests.create({
         merchantId,
+        branchId: dto.branchId ?? null,
         requestToken: `rt_${randomBytes(18).toString('hex')}`,
         requestedScopes,
         requiredScopes,
@@ -86,10 +90,16 @@ export class ConsentService {
   async viewRequestForConsumer(token: string) {
     const request = await this.loadByTokenFresh(token);
     const merchant = await this.merchants.findById(request.merchantId);
+    const branch = request.branchId
+      ? await this.merchants.findBranchById(request.branchId)
+      : null;
     return {
       requestId: request.id,
       requestToken: request.requestToken,
       status: request.status,
+      // Everything the branded consent screen renders:
+      brand: this.merchants.branding(merchant),
+      branch: branch ? { id: branch.id, name: branch.name, code: branch.code, city: branch.city } : null,
       merchant: {
         id: merchant.id,
         name: merchant.name,
@@ -180,7 +190,9 @@ export class ConsentService {
       grantId: grant.id,
       status: 'approved',
       grantedScopes: granted,
-      merchant: { id: merchant.id, name: merchant.name, slug: merchant.slug },
+      brand: this.merchants.branding(merchant),
+      // Route the shopper into the brand's own solution (loyalty app, etc.).
+      redirect: merchant.postConsentRedirectUrl,
     };
   }
 
@@ -288,6 +300,8 @@ export class ConsentService {
       const merchant = await this.merchants.findById(g.merchantId);
       out.push({
         grantId: g.id,
+        // "Connected brands" — with branding for the consumer app.
+        brand: this.merchants.branding(merchant),
         merchant: { id: merchant.id, name: merchant.name, slug: merchant.slug },
         status: g.status,
         grantedScopes: g.grantedScopes,
@@ -387,6 +401,7 @@ export class ConsentService {
       requestId: request.id,
       requestToken: request.requestToken,
       status: request.status,
+      branchId: request.branchId,
       requestedScopes: request.requestedScopes,
       requiredScopes: request.requiredScopes,
       reference: request.reference,

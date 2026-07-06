@@ -38,6 +38,10 @@ export class Connector {
   @Column({ type: 'boolean', default: true })
   active!: boolean;
 
+  /** The brand's primary solution — consented customers are routed here first. */
+  @Column({ type: 'boolean', default: false })
+  isPrimary!: boolean;
+
   @CreateDateColumn()
   createdAt!: Date;
 }

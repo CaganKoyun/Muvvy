@@ -23,6 +23,10 @@ export class IdentityRequest {
   @Column({ type: 'varchar' })
   merchantId!: string;
 
+  /** The branch (şube) that generated this QR, if any. */
+  @Column({ type: 'varchar', nullable: true })
+  branchId!: string | null;
+
   /** Opaque token embedded in the QR; how the customer looks the request up. */
   @Index({ unique: true })
   @Column({ type: 'varchar' })

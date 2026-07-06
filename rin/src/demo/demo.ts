@@ -124,16 +124,23 @@ async function main() {
     const wh = await api('POST', '/v1/webhooks/endpoints', { token: mToken, body: { url: SINK_URL } });
     check(wh.status === 201 && !!wh.body.secret, 'webhook registered');
     const webhookSecret = wh.body.secret as string;
+    const catalog = await api('GET', '/v1/connectors/catalog', { token: mToken });
+    check((catalog.body.tools?.length ?? 0) >= 5, 'integration catalog available (Salesforce, SAP, NCR…)');
     const conn = await api('POST', '/v1/connectors', {
       token: mToken,
-      body: { kind: 'crm', adapter: 'log', name: 'Salesforce (demo)' },
+      body: { kind: 'crm', adapter: 'log', name: 'Salesforce (demo)', config: { apiKey: 'sk_demo' }, isPrimary: true },
     });
-    check(conn.status === 201, 'CRM connector registered (Integration Gateway)');
+    check(conn.status === 201 && conn.body.isPrimary === true, 'primary CRM connector registered (brand’s main solution)');
     const connectorId = conn.body.id as string;
 
-    section('3 · Cashier creates the QR (identity request) + idempotency');
-    const reqRes = await api('POST', '/v1/identity/requests', { token: mToken, body: { reference: 'POS-4471' }, idem: 'req-1' });
+    section('3 · Branch (şube) creates the branded QR + idempotency');
+    const reqRes = await api('POST', '/v1/identity/requests', {
+      token: mToken,
+      body: { reference: 'POS-4471', branchId: seeded.branch.id },
+      idem: 'req-1',
+    });
     check(reqRes.status === 201 && reqRes.body.status === 'pending', 'pending request created');
+    check(reqRes.body.branchId === seeded.branch.id, 'request is scoped to the branch');
     const requestToken = reqRes.body.requestToken as string;
     const requestId = reqRes.body.requestId as string;
     const dup = await api('POST', '/v1/identity/requests', { token: mToken, body: { reference: 'POS-4471' }, idem: 'req-1' });
@@ -144,9 +151,12 @@ async function main() {
     check(login.status === 200 && !!login.body.accessToken, 'customer authenticated');
     let cToken = login.body.accessToken as string;
 
-    section('5 · Consent screen');
+    section('5 · Branded consent screen (brand logo + branch)');
     const view = await api('GET', `/v1/consent/requests/${requestToken}`, { token: cToken });
-    check(view.body.merchant?.name === 'LC Waikiki', 'sees requesting merchant');
+    show('Consent screen payload', { brand: view.body.brand, branch: view.body.branch });
+    check(view.body.brand?.name === 'LC Waikiki', 'sees the brand name');
+    check(!!view.body.brand?.logoUrl, 'branded consent screen carries the brand logo');
+    check(view.body.branch?.code === 'AKASYA', 'sees which branch (şube) is asking');
     check(view.body.requested?.length === 6, 'sees all 6 requested scopes');
 
     section('6 · Customer approves — grants required + birthday, DECLINES gender & address');
@@ -155,6 +165,7 @@ async function main() {
       body: { grantedScopes: ['profile:email', 'profile:phone', 'permission:marketing', 'profile:birthday'] },
     });
     check(approve.status === 201 && approve.body.status === 'approved', 'consent granted');
+    check(!!approve.body.redirect, 'shopper is handed a redirect into the brand’s solution');
     const grantId = approve.body.grantId as string;
 
     section('7 · Merchant reads ONLY consented fields');
@@ -284,7 +295,8 @@ async function main() {
 
     section('19 · Consent Center + one-click revoke');
     const center = await api('GET', '/v1/consent/grants', { token: cToken });
-    check(center.body.grants?.length === 1, 'one active connection listed');
+    check(center.body.grants?.length === 1, 'one connected brand listed');
+    check(!!center.body.grants?.[0]?.brand?.logoUrl, 'connected brand shows its logo in the app');
     const revoke = await api('POST', `/v1/consent/grants/${grantId}/revoke`, { token: cToken });
     check(revoke.body.status === 'revoked', 'grant revoked');
     const afterRevoke = await api('GET', `/v1/customers/${grantId}`, { token: mToken });

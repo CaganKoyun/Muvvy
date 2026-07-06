@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class CreateConnectorDto {
   @ApiProperty({ enum: ['crm', 'pos', 'erp'] })
@@ -17,8 +17,13 @@ export class CreateConnectorDto {
   @IsString()
   name!: string;
 
-  @ApiPropertyOptional({ example: { url: 'https://crm.example/ingest' } })
+  @ApiPropertyOptional({ example: { url: 'https://crm.example/ingest', apiKey: '••••' } })
   @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'Mark this as the brand’s primary solution.' })
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
 }

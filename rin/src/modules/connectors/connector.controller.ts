@@ -27,10 +27,22 @@ export class ConnectorController {
     return this.connectors.create(m.id, dto);
   }
 
+  @Get('catalog')
+  @ApiOperation({ summary: 'Tools a brand can connect (Salesforce, SAP, NCR, …).' })
+  catalog() {
+    return { tools: this.connectors.catalog() };
+  }
+
   @Get()
   @ApiOperation({ summary: 'My connectors.' })
   async list(@CurrentMerchant() m: MerchantPrincipal) {
     return { connectors: await this.connectors.list(m.id) };
+  }
+
+  @Post(':id/primary')
+  @ApiOperation({ summary: 'Set a connector as the brand’s primary solution.' })
+  async setPrimary(@CurrentMerchant() m: MerchantPrincipal, @Param('id') id: string) {
+    return this.connectors.setPrimary(m.id, id);
   }
 
   @Get(':id/logs')

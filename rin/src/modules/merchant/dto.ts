@@ -1,14 +1,54 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsHexColor,
   IsIn,
+  IsOptional,
   IsString,
+  IsUrl,
   ValidateNested,
 } from 'class-validator';
 import { ALL_SCOPE_KEYS } from '../../common/scopes';
+
+export class CreateBranchDto {
+  @ApiProperty({ example: 'LC Waikiki Akasya' })
+  @IsString()
+  name!: string;
+
+  @ApiProperty({ example: 'AKASYA' })
+  @IsString()
+  code!: string;
+
+  @ApiPropertyOptional({ example: 'İstanbul' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+}
+
+export class UpdateBrandingDto {
+  @ApiPropertyOptional({ example: 'LC Waikiki' })
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.example/lcw-logo.png' })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  logoUrl?: string;
+
+  @ApiPropertyOptional({ example: '#0057B8' })
+  @IsOptional()
+  @IsHexColor()
+  primaryColor?: string;
+
+  @ApiPropertyOptional({ example: 'https://app.lcwaikiki.com/welcome' })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  postConsentRedirectUrl?: string;
+}
 
 export class OAuthTokenDto {
   @ApiProperty({ example: 'client_credentials' })
