@@ -2,11 +2,13 @@ import { INestApplicationContext } from '@nestjs/common';
 import { MerchantService } from '../modules/merchant/merchant.service';
 import { IdentityService } from '../modules/identity/identity.service';
 import { ProfileService } from '../modules/profile/profile.service';
+import { MallService } from '../modules/mall/mall.service';
 import { SCOPES } from '../common/scopes';
 
 export interface SeedResult {
   merchant: { id: string; name: string; slug: string; clientId: string; clientSecret: string };
   consumer: { id: string; email: string; password: string };
+  mall: { id: string; name: string };
 }
 
 /**
@@ -18,9 +20,14 @@ export async function seed(app: INestApplicationContext): Promise<SeedResult> {
   const merchants = app.get(MerchantService);
   const identity = app.get(IdentityService);
   const profiles = app.get(ProfileService);
+  const malls = app.get(MallService);
 
   const merchant = await merchants.create('LC Waikiki', 'lc-waikiki', 'fashion');
   const cred = await merchants.issueCredentials(merchant.id);
+
+  // A mall the merchant participates in, so the mall dashboard has data.
+  const mall = await malls.createMall('Akasya AVM', 'akasya', 'İstanbul');
+  await malls.addStore(mall.id, merchant.id);
   await merchants.setRequestedFields(merchant.id, [
     // Required (PRD example): Phone, Email, Marketing
     { scopeKey: SCOPES.PROFILE_EMAIL, required: true },
@@ -51,5 +58,6 @@ export async function seed(app: INestApplicationContext): Promise<SeedResult> {
       clientSecret: cred.clientSecret,
     },
     consumer: { id: consumer.id, email: consumer.email, password },
+    mall: { id: mall.id, name: mall.name },
   };
 }

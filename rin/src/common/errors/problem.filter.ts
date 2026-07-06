@@ -16,6 +16,10 @@ export class ProblemDetailsFilter implements ExceptionFilter {
   private readonly logger = new Logger('Http');
 
   catch(exception: unknown, host: ArgumentsHost): void {
+    // GraphQL errors are formatted by Apollo, not this HTTP filter.
+    if (host.getType() !== 'http') {
+      throw exception;
+    }
     const ctx = host.switchToHttp();
     const res = ctx.getResponse();
     const req = ctx.getRequest();

@@ -8,6 +8,25 @@ export interface AppConfig {
   db: DbConfig;
   jwt: JwtConfig;
   webhook: WebhookConfig;
+  webauthn: WebAuthnConfig;
+  oidc: OidcConfig;
+  events: EventsConfig;
+}
+
+export interface EventsConfig {
+  transport: 'inproc' | 'nats';
+  natsUrl: string;
+}
+
+export interface WebAuthnConfig {
+  rpId: string;
+  rpName: string;
+  origin: string;
+}
+
+export interface OidcConfig {
+  demoSecret: string;
+  googleClientId: string;
 }
 
 export interface DbConfig {
@@ -63,5 +82,18 @@ export default (): AppConfig => ({
   webhook: {
     timeoutMs: int(process.env.WEBHOOK_TIMEOUT_MS, 5000),
     maxAttempts: int(process.env.WEBHOOK_MAX_ATTEMPTS, 5),
+  },
+  webauthn: {
+    rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+    rpName: process.env.WEBAUTHN_RP_NAME ?? 'Spark RIN',
+    origin: process.env.WEBAUTHN_ORIGIN ?? 'http://localhost:3000',
+  },
+  oidc: {
+    demoSecret: process.env.OIDC_DEMO_SECRET ?? 'demo-oidc-secret',
+    googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  },
+  events: {
+    transport: (process.env.EVENT_TRANSPORT as EventsConfig['transport']) ?? 'inproc',
+    natsUrl: process.env.NATS_URL ?? 'nats://localhost:4222',
   },
 });

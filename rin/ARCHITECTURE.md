@@ -39,14 +39,21 @@ direct service calls for HTTP/gRPC) — no domain rewrite.
 
 | Context | Owns | Key entities | Splits into |
 |---|---|---|---|
-| **Identity** | The Spark consumer identity & login | `consumer` | Identity Service |
+| **Identity** | Spark identity & login — password, passkeys (WebAuthn), social (OIDC) | `consumer`, `consumer_credential`, `webauthn_challenge` | Identity Service |
 | **Profile** | Customer-owned PII + the disclosure resolver (privacy boundary) | `consumer_profile` | Customer Profile Service |
 | **Merchant** | Tenant, OAuth2 client credentials, Consent Engine config, dashboard reads | `merchant`, `merchant_credential`, `merchant_requested_field` | Merchant Service |
 | **Consent** | The handshake + durable grants (the heart) | `identity_request`, `consent_grant` | Consent Service |
+| **Wallet** | Receipts, warranties, gift cards, coupons, loyalty/membership cards | `receipt`, `receipt_item`, `warranty`, `wallet_item` | Receipt & Wallet Service |
+| **Campaign** | Consent-safe campaigns + membership tiers/points | `campaign`, `membership` | Engagement Service |
+| **Notifications** | Notification Center + warranty-expiry reminders | `notification` | Notification Service |
+| **Mall** | Mall-wide identity dashboard | `mall`, `mall_store` | Mall Service |
+| **Connectors** | CRM/POS/ERP normalization + CSV import | `connector`, `connector_sync_log` | Integration Gateway |
 | **Webhooks** | Signed event delivery + delivery ledger | `webhook_endpoint`, `webhook_delivery` | Integration Gateway |
+| **GraphQL** | Code-first consumer read graph (one round trip) | — | BFF / API gateway |
 | **Common/Auth** | Token issue/verify, consumer & merchant guards | — | shared lib / gateway |
+| **Common/WebAuthn** | Self-contained CBOR + ES256 passkey verifier | — | shared lib |
 | **Common/Audit** | Append-only trail (KVKK/GDPR, Transparency Center) | `audit_log` | Audit Service |
-| **Common/Events** | Domain event backbone | — | Kafka/NATS |
+| **Common/Events** | Domain event backbone + swappable transport (inproc \| NATS) | — | Kafka/NATS |
 | **Common/Idempotency** | At-most-once mutation | `idempotency_record` | shared middleware |
 
 Dependency direction is acyclic: `Consent → Merchant`, `Consent → Profile`,
@@ -129,6 +136,31 @@ in `webhook_delivery`.
 don't change — they already depend only on the `EventBus` interface and `DomainEvent`
 shape.
 
+## 6b. Platform capabilities built on the identity + consent core
+
+- **Passkeys (WebAuthn)** — `common/webauthn` implements a minimal CBOR codec plus
+  an ES256 attestation/assertion verifier with **no external dependency**. A
+  challenge is persisted (`webauthn_challenge`) so the ceremony survives across
+  instances; the public key lands in `consumer_credential`. Forged signatures and
+  non-incrementing counters are rejected. A software authenticator ships for the
+  demo/tests so the ceremony is exercised with genuine P-256 signatures.
+- **Social login (OIDC)** — a pluggable verifier: `demo` (HS256, offline) for the
+  demo/tests, and real `google`/`apple` (RS256 against provider JWKS). All methods
+  converge on one `consumer` — link by provider subject, else by email, else create.
+- **Receipts & Wallet** — a merchant attaches a receipt to a customer *by grant id*
+  (so only consented customers get receipts); warranties auto-derive from item
+  warranty months; `ReceiptUploaded` flows to webhooks and connectors.
+- **Consent-safe campaigns** — `CampaignService` targets only active grants whose
+  `grantedScopes` include the required permission, so a customer who declined
+  marketing is provably excluded (asserted in the demo/tests).
+- **Connectors (Integration Gateway)** — domain events are *normalized*
+  (`upsert_customer` / `consent_changed` / `receipt`) and forwarded to a merchant's
+  CRM/POS/ERP targets, with every sync recorded in `connector_sync_log`. CSV import
+  re-uses the same consented-receipt path.
+- **GraphQL** — a code-first read surface (`{ me { … } }`) lets the consumer app
+  fetch its whole home screen in one round trip, guarded by a Gql-aware consumer
+  guard, alongside REST.
+
 ## 7. Cross-cutting guarantees
 
 - **Idempotency** — `Idempotency-Key` on a mutating request reserves a row (unique
@@ -140,10 +172,14 @@ shape.
 - **Validation** — global `ValidationPipe` with `whitelist + forbidNonWhitelisted`
   rejects unknown fields; scope values are validated against the catalog.
 
-## 8. What changes for global scale (not in this slice)
+## 8. What changes for global scale (next)
 
-- Broker (Kafka/NATS) + dead-letter queue behind the `EventBus` seam.
-- Split read models for dashboards/analytics (CQRS) instead of aggregating on read.
-- TypeORM migrations replace `synchronize`.
-- Passkey/WebAuthn + social IdPs attach to `consumer` (identity model already allows it).
-- Horizontal scale-out per context; the gateway owns token verification + tenant scoping.
+- **Broker**: the NATS transport exists behind the `EventBus` seam; add a Kafka
+  adapter + dead-letter queue and run subscribers as independent consumers.
+- **Read models**: split CQRS read models for dashboards/mall/analytics instead of
+  aggregating on read (the current dashboards iterate grants — fine at MVP scale).
+- **Migrations**: TypeORM migrations replace `synchronize`.
+- **Passkey attestation**: validate attestation roots against a FIDO metadata
+  service (this slice accepts `none` attestation and verifies the assertion).
+- **Split services**: each context lifts out per the table in §2; the gateway owns
+  token verification + tenant scoping.

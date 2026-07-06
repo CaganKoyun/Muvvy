@@ -247,6 +247,26 @@ export class ConsentService {
     }));
   }
 
+  /** Resolve an active grant a merchant owns — the merchant's handle to a customer. */
+  async requireActiveGrant(merchantId: string, grantId: string): Promise<ConsentGrant> {
+    const grant = await this.grants.findOne({ where: { id: grantId, merchantId } });
+    if (!grant || grant.status !== 'active') {
+      throw new NotFoundException('No active grant for this customer.');
+    }
+    return grant;
+  }
+
+  /** Every active grant for a merchant (used for campaign targeting). */
+  async activeGrantsForMerchant(merchantId: string): Promise<ConsentGrant[]> {
+    return this.grants.find({ where: { merchantId, status: 'active' } });
+  }
+
+  /** Merchant ids the consumer currently has an active grant with. */
+  async grantsForConsumerActiveMerchantIds(consumerId: string): Promise<string[]> {
+    const rows = await this.grants.find({ where: { consumerId, status: 'active' } });
+    return rows.map((g) => g.merchantId);
+  }
+
   async getCustomerForMerchant(merchantId: string, grantId: string) {
     const grant = await this.grants.findOne({ where: { id: grantId, merchantId } });
     if (!grant) throw new NotFoundException('Customer not found.');

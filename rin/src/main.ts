@@ -11,6 +11,8 @@ async function bootstrap() {
 
   // OAuth2 token endpoint accepts form-urlencoded as well as JSON.
   app.use(express.urlencoded({ extended: true }));
+  // CSV import endpoints receive a raw text body.
+  app.use(express.text({ type: ['text/csv', 'text/plain'] }));
 
   app.useGlobalPipes(
     new ValidationPipe({

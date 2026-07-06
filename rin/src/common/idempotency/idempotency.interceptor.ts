@@ -25,6 +25,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
   ) {}
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
+    // Only applies to HTTP requests (not GraphQL / RPC contexts).
+    if (context.getType() !== 'http') {
+      return next.handle();
+    }
     const req = context.switchToHttp().getRequest();
     const key: string | undefined = req.headers['idempotency-key'];
 

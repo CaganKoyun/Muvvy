@@ -4,185 +4,184 @@
 > The identity & consent layer for physical commerce — *"Continue with Spark"*, the
 > in-store equivalent of *"Sign in with Apple"*.
 
-This repository holds the **MVP core slice** of the RIN platform described in the
-PRD: a working, end-to-end implementation of the **Continue-with-Spark handshake**
-— identity, granular consent, and the moment a merchant's CRM receives a verified
-customer profile **without any retailer system being replaced**.
+A customer identifies **once** and shops seamlessly across every participating
+merchant with a single trusted identity. Retailers keep their existing CRM, POS
+and ERP and instantly onboard **verified, consented** customers. This repository
+is a working, verified implementation of the platform from the PRD, built as a
+**modular monolith** (NestJS + TypeORM + PostgreSQL) whose bounded contexts split
+into services with no domain rewrite.
 
-It is a **modular monolith** (NestJS + TypeORM + PostgreSQL) laid out as separable
-bounded contexts, so it runs as one deployable today and splits into services later
-without rewrites.
+Everything below runs end-to-end with **zero external dependencies** (in-memory
+SQLite) and is exercised by a self-asserting demo and two e2e suites — verified on
+both **SQLite** and **PostgreSQL 16**.
 
 ---
 
-## What this slice does (and proves)
+## What's implemented
 
-A cashier shows a QR → the customer taps *Continue with Spark*, sees exactly what
-this store is asking for, and approves a **granular subset** → the merchant's CRM
-instantly receives **only the consented fields**, over both a pull API and a
-signed webhook. The customer can **revoke in one click**, and the merchant loses
-access immediately.
+**Identity**
+- "Continue with Spark" — email/password, **passkeys (WebAuthn, real ES256)**, and
+  **social login (OIDC)** — all resolving to one Spark identity reused across stores.
+- Merchants authenticate via OAuth2 `client_credentials`.
 
-Every one of these properties is enforced in code and asserted by the demo/tests:
+**Consent (the heart)**
+- The Consent Engine (granular required/optional scopes) and the QR handshake:
+  request → consent screen → granular approval → merchant receives *only* the
+  consented fields. One-click, revocable, fully audited.
+
+**Receipts & Wallet**
+- Digital receipts (POS → wallet), auto-attached warranties, return windows,
+  gift cards / coupons / loyalty & membership cards, purchase timeline.
+
+**Engagement**
+- **Consent-safe campaigns** (a customer who declined marketing is provably never
+  targeted), membership tiers & points, and a customer Notification Center with
+  warranty-expiry reminders.
+
+**Mall**
+- Mall-wide identity dashboard (identified shoppers across member stores,
+  participation, cross-store shoppers, campaign reach).
+
+**Integrations**
+- Webhooks (HMAC-signed, retried, logged) **and** a connector framework
+  (CRM/POS/ERP Integration Gateway) that normalizes events, plus **CSV import**.
+
+**Surfaces & platform**
+- REST (**OpenAPI at `/docs`**) **and GraphQL at `/graphql`** (one-round-trip
+  consumer graph). Multi-tenant RBAC, event-driven backbone (**swappable
+  in-process ↔ NATS**), append-only audit log, idempotent APIs, RFC7807 errors.
+
+### Enforced & verified guarantees
 
 | Property | How it's enforced |
 |---|---|
-| Granular consent | Merchant receives *only* granted scopes; declined fields are never read (`ProfileService.resolveDisclosure`) |
+| Granular consent | Merchant receives *only* granted scopes; declined fields are never read |
 | Consent boundaries | Can't grant an un-requested scope; can't finish without required scopes |
-| Revocability | `POST /consent/grants/:id/revoke` → merchant reads return `revoked`, `ConsentChanged` webhook fires |
+| Consent-safe marketing | Campaigns skip customers who didn't grant the required permission |
+| Revocability | Revoke → merchant reads return `revoked`, `ConsentChanged` fires |
 | Tenant isolation | A merchant gets `404` for another merchant's customer |
-| No cross-merchant linking | The raw Spark identity id is **never** sent to a merchant; merchants key on a per-grant id |
+| No cross-merchant linking | The raw Spark id is never disclosed; merchants key on a per-grant id |
+| Real passkeys | ES256 attestation/assertion verified; forged signatures rejected |
 | Signed delivery | Webhooks carry `X-Spark-Signature: sha256=…` (HMAC over the body) |
-| Idempotency | `Idempotency-Key` header → at-most-once execution with replayed responses |
-| Auditability | Every consent decision & disclosure is written to an append-only `audit_log` |
+| Idempotency | `Idempotency-Key` → at-most-once execution with replayed responses |
+| Auditability | Every consent decision & disclosure is written to `audit_log` |
 
 ---
 
 ## Quick start
 
-### 1) Zero-setup demo (in-memory SQLite)
-
 ```bash
 cd rin
 npm install
-npm run demo
+npm run demo        # full end-to-end story + ~45 assertions (spins up its own webhook sink)
 ```
 
-`npm run demo` boots the app in-process, **spins up its own webhook sink**, seeds
-one retailer (LC Waikiki) and one customer (Ahmet), then walks the entire handshake
-over the real HTTP API — printing each step and asserting the outcome. It exits
-non-zero if anything is wrong, so it doubles as a smoke test.
+`npm run demo` boots the app in-process, seeds a retailer (LC Waikiki) and a
+customer (Ahmet), and walks the **entire** platform over the real HTTP/GraphQL
+APIs — including a software passkey authenticator producing genuine ES256
+signatures. It exits non-zero on any failure, so it doubles as a smoke test.
 
-### 2) Run the server + explore the API
+### Explore the API
 
 ```bash
 npm run build && DB_DRIVER=sqlite DB_SQLITE_PATH=:memory: npm run start:prod
-# open http://localhost:3000/docs   (OpenAPI / Swagger UI)
+# REST + OpenAPI : http://localhost:3000/docs
+# GraphQL        : http://localhost:3000/graphql
 ```
 
-### 3) Production target — PostgreSQL
+### Production target — PostgreSQL
 
 ```bash
 docker compose up -d          # Postgres 16 on :5432
 cp .env.example .env          # DB_DRIVER=postgres by default
-npm run seed                  # prints merchant client credentials + customer login
+npm run seed                  # prints merchant credentials + customer login
 npm run start:dev
 ```
 
-The **same code and entities** run on both drivers (verified against Postgres 16
-and SQLite); the model avoids driver-specific types on purpose.
+The **same code and entities** run on both drivers (verified on Postgres 16 and
+SQLite); the model avoids driver-specific types on purpose.
 
 ---
 
-## The handshake, end to end
+## API surface (highlights)
 
-```
-Cashier                Customer (Spark app)            Merchant backend            Merchant CRM
-  │                          │                               │                          │
-  │ POST /oauth/token ───────┼──────────────────────────────►│ (client_credentials)     │
-  │ POST /v1/identity/requests ──────────────────────────────►│  → { requestToken, qr } │
-  │  shows QR  ──────────────►│                               │                          │
-  │                    scans, POST /v1/auth/login             │                          │
-  │                    GET /v1/consent/requests/:token  ──────► sees merchant + scopes   │
-  │                    POST …/approve { grantedScopes }  ─────► consent_grant created     │
-  │                          │                               │  CustomerCreated  ───────►│ (signed webhook)
-  │                          │           GET /v1/identity/requests/:id ──────────────────► only consented fields
-  │                    POST …/grants/:id/revoke  ────────────► ConsentChanged  ──────────►│
-```
+`consumer` = Spark consumer token · `merchant` = OAuth2 client-credentials token.
 
----
-
-## API surface
-
-`Bearer` = Spark **consumer** token (from `/v1/auth/login`).
-`Bearer` = merchant token (from `/oauth/token`) for merchant routes.
-
-| PRD API | Endpoint | Auth |
+| Area | Endpoints | Auth |
 |---|---|---|
-| `POST /identity/login` | `POST /v1/auth/login`, `POST /v1/auth/register`, `GET /v1/auth/me` | consumer |
-| (merchant auth) | `POST /oauth/token` (OAuth2 `client_credentials`) | client creds |
-| `POST /customer` (profile owner) | `GET/PUT /v1/me/profile` | consumer |
-| (Consent Engine config) | `GET/PUT /v1/merchant/consent-config` | merchant |
-| (create handshake) | `POST /v1/identity/requests` | merchant |
-| `POST /customer` (read) | `GET /v1/identity/requests/:id`, `GET /v1/customers`, `GET /v1/customers/:grantId` | merchant |
-| `POST /consent` | `GET /v1/consent/requests/:token`, `POST …/approve`, `POST …/deny` | consumer |
-| (Consent Center + revoke) | `GET /v1/consent/grants`, `POST /v1/consent/grants/:id/revoke` | consumer |
-| `Campaign/Membership …` dashboard | `GET /v1/merchant/dashboard` | merchant |
+| Identity | `POST /v1/auth/register\|login`, `GET /v1/auth/me` | consumer |
+| Passkeys | `POST /v1/auth/passkey/{register,login}/{options,verify}` | mixed |
+| Social | `POST /v1/auth/social` | public |
+| Merchant auth | `POST /oauth/token` (client_credentials) | client creds |
+| Profile | `GET/PUT /v1/me/profile` | consumer |
+| Consent config | `GET/PUT /v1/merchant/consent-config` | merchant |
+| Handshake | `POST /v1/identity/requests`, `GET /v1/identity/requests/:id` | merchant |
+| Consent | `GET /v1/consent/requests/:token`, `POST …/approve\|deny` | consumer |
+| Consent Center | `GET /v1/consent/grants`, `POST /v1/consent/grants/:id/revoke` | consumer |
+| Customers | `GET /v1/customers`, `GET /v1/customers/:grantId` | merchant |
+| Receipts/Wallet | `POST /v1/receipts`, `POST /v1/wallet/issue`, `GET /v1/me/{receipts,warranties,wallet,timeline}` | mixed |
+| Campaigns/Members | `POST/GET /v1/campaigns`, `POST/GET /v1/memberships`, `GET /v1/me/memberships` | mixed |
+| Notifications | `GET /v1/me/notifications`, `POST …/:id/read`, `POST …/refresh-warranties` | consumer |
+| Mall | `GET /v1/malls`, `GET /v1/malls/:id/dashboard`, `GET /v1/me/malls` | mixed |
+| Connectors | `POST/GET /v1/connectors`, `GET /v1/connectors/:id/logs`, `POST /v1/connectors/import/receipts` | merchant |
 | Webhooks | `POST/GET /v1/webhooks/endpoints`, `GET /v1/webhooks/deliveries` | merchant |
-| health | `GET /healthz` | — |
+| Dashboard | `GET /v1/merchant/dashboard` | merchant |
+| GraphQL | `POST /graphql` — `{ me { … } }` | consumer |
+| Health | `GET /healthz` | — |
 
-Full request/response schemas live in the OpenAPI doc at **`/docs`**.
+Full schemas: **`/docs`** (OpenAPI). Scopes (Consent Engine): `profile:{name,email,phone,birthday,gender,address}`, `permission:{marketing,sms,location,analytics}`.
 
-### Consent Engine — scope catalog
-
-Scopes are the granular units a merchant asks for and a customer approves:
-
-- **Profile (PII):** `profile:name`, `profile:email`, `profile:phone`, `profile:birthday`, `profile:gender`, `profile:address`
-- **Permissions:** `permission:marketing`, `permission:sms`, `permission:location`, `permission:analytics`
-
-A merchant marks each requested scope **required** or **optional** (PRD example:
-required = email, phone, marketing; optional = birthday, gender, address).
-
-### Webhook events
-
-`CustomerCreated`, `CustomerUpdated`, `ConsentChanged`, `IdentityVerified` — delivered
-to registered endpoints, HMAC-signed, with delivery attempts recorded in
-`webhook_delivery`. The in-process event bus (`src/common/events`) is the single
-seam to swap for Kafka/NATS/RabbitMQ.
+Webhook / connector events: `CustomerCreated`, `CustomerUpdated`, `ConsentChanged`,
+`IdentityVerified`, `ReceiptUploaded`, `WalletItemIssued`, `CampaignCreated`.
 
 ---
 
 ## Project layout
 
 ```
-rin/
-├─ src/
-│  ├─ config/                 # typed config + portable TypeORM datasource (pg | sqlite)
-│  ├─ common/
-│  │  ├─ scopes.ts            # the Consent Engine data dictionary
-│  │  ├─ auth/                # JWT signing + consumer & merchant guards (multi-tenant)
-│  │  ├─ events/              # domain event bus (Kafka/NATS seam)
-│  │  ├─ audit/               # append-only audit log
-│  │  ├─ idempotency/         # Idempotency-Key interceptor
-│  │  └─ errors/              # RFC7807 problem+json filter
-│  ├─ modules/
-│  │  ├─ identity/            # Spark consumer identity + login
-│  │  ├─ profile/             # customer-owned profile + disclosure resolver
-│  │  ├─ merchant/            # tenant, client credentials, consent config, OAuth token
-│  │  ├─ consent/             # the handshake: identity_request + consent_grant
-│  │  └─ webhooks/            # signed event delivery to merchant CRMs
-│  ├─ seed/                   # shared seeder + standalone `npm run seed`
-│  └─ demo/                   # self-contained end-to-end demo (`npm run demo`)
-└─ test/                      # Jest e2e (`npm run test:e2e`)
+rin/src/
+├─ config/                    # typed config + portable TypeORM datasource (pg | sqlite)
+├─ common/
+│  ├─ scopes.ts               # Consent Engine data dictionary
+│  ├─ auth/                   # JWT + consumer & merchant guards (multi-tenant)
+│  ├─ events/                 # event bus + swappable transport (inproc | NATS)
+│  ├─ webauthn/               # self-contained CBOR + ES256 WebAuthn + demo authenticator
+│  ├─ audit/  idempotency/  errors/  orm/  health/
+├─ modules/
+│  ├─ identity/               # Spark identity: password, passkeys, social (OIDC)
+│  ├─ profile/                # customer-owned profile + disclosure resolver
+│  ├─ merchant/               # tenant, client credentials, consent config, OAuth
+│  ├─ consent/                # the handshake: identity_request + consent_grant
+│  ├─ wallet/                 # receipts, warranties, gift cards, coupons, loyalty
+│  ├─ notifications/          # Notification Center + warranty reminders
+│  ├─ campaign/               # consent-safe campaigns + membership
+│  ├─ mall/                   # mall-wide identity dashboard
+│  ├─ connectors/             # CRM/POS/ERP Integration Gateway + CSV import
+│  ├─ webhooks/               # HMAC-signed event delivery
+│  └─ graphql/                # code-first GraphQL (consumer reads)
+├─ seed/                      # shared seeder + `npm run seed`
+└─ demo/                      # full self-contained end-to-end demo (`npm run demo`)
 ```
 
 ## Testing
 
 ```bash
-npm run test:e2e     # 13 e2e assertions over the critical path (in-memory SQLite)
-npm run demo         # narrated end-to-end run + assertions
+npm run test:e2e     # 20 e2e tests (core handshake + extended flows), in-memory SQLite
+npm run demo         # narrated end-to-end run + ~45 assertions
 ```
 
-## PRD coverage
+## Notes & simplifications
 
-**Implemented (Phase 1 core):** Identity Service, Consent Service (the Consent
-Engine + handshake), Customer Profile Service, Merchant Service (tenant + OAuth2 +
-config + dashboard), Webhook framework, event-driven backbone, multi-tenant RBAC,
-idempotent APIs, audit logging, OpenAPI docs, privacy-by-design disclosure.
+- **Passkeys** are implemented from first principles (a small CBOR + ES256
+  verifier in `common/webauthn`) so the ceremony runs end-to-end with real
+  signatures and no heavy dependency; swap in a FIDO metadata service for
+  attestation-root validation in production.
+- **Social login**: the `demo` provider (HS256) exercises the flow offline; the
+  `google`/`apple` providers verify real RS256 tokens against provider JWKS.
+- **Event transport** defaults to in-process; `EVENT_TRANSPORT=nats` activates the
+  NATS adapter (publishers/subscribers unchanged).
+- `synchronize: true` builds the schema from entities for the demo; use TypeORM
+  migrations in production.
 
-**Deferred (later phases, per PRD roadmap):** Receipt & Wallet Service, Passkey /
-WebAuthn & social logins (the identity model is ready for them), GraphQL surface,
-Kafka/NATS broker (bus abstraction is in place), mall features, POS/ERP/CRM
-connectors, Analytics Service, notifications, admin portal, IaC.
-
-See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the design, data model, and how
-each context splits into a service.
-
-## Known MVP simplifications
-
-- Identity uses email/password; social login (Apple/Google), phone OTP and passkeys
-  attach to the same `consumer` row later without model changes.
-- Webhook retries are in-process with linear backoff (a broker + dead-letter queue
-  is the Phase-2 upgrade at the `EventBus` seam).
-- `synchronize: true` builds the schema from entities for the demo; production uses
-  TypeORM migrations.
+See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the design, data model, event
+flow, and how each context becomes a service.

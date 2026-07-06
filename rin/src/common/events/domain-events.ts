@@ -8,6 +8,9 @@ export enum EventType {
   CustomerUpdated = 'CustomerUpdated',
   ConsentChanged = 'ConsentChanged',
   IdentityVerified = 'IdentityVerified',
+  ReceiptUploaded = 'ReceiptUploaded',
+  WalletItemIssued = 'WalletItemIssued',
+  CampaignCreated = 'CampaignCreated',
 }
 
 export interface DomainEvent<T = Record<string, unknown>> {
