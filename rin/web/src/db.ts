@@ -132,6 +132,13 @@ export const db = {
     if (error) throw new Error(error.message);
   },
   setPrimaryConnector: (id: string) => rpc('set_primary_connector', { p_id: id }),
+  async syncLogs(connectorId: string) {
+    const { data } = await supabase.from('connector_sync_logs').select('*').eq('connector_id', connectorId).order('created_at', { ascending: false }).limit(25);
+    return data ?? [];
+  },
+  setMapping: (connectorId: string, mapping: Record<string, string>) => rpc('set_connector_mapping', { p_id: connectorId, p_mapping: mapping }),
+  retrySync: (logId: string) => rpc('retry_sync', { p_log_id: logId }),
+  runSyncs: () => supabase.functions.invoke('process-syncs', { body: {} }),
   sendCampaign: (title: string, body?: string, scope = 'permission:marketing') =>
     rpc('send_campaign', { p_title: title, p_body: body ?? null, p_require_scope: scope }),
   async campaigns() {
