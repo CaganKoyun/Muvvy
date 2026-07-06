@@ -1,30 +1,38 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Wordmark, Button } from '../components/ui';
+import { Wordmark, Button, Badge } from '../components/ui';
 import { useAuth } from '../AuthContext';
+import { db } from '../db';
 
 const nav = [
   { to: '/dashboard', label: 'Overview', end: true },
   { to: '/dashboard/branches', label: 'Branches' },
-  { to: '/dashboard/brand', label: 'Brand & Consent' },
+  { to: '/dashboard/brand', label: 'Brand & Consent', admin: true },
   { to: '/dashboard/qr', label: 'Generate QR' },
   { to: '/dashboard/customers', label: 'Customers' },
-  { to: '/dashboard/integrations', label: 'Integrations' },
-  { to: '/dashboard/campaigns', label: 'Campaigns' },
+  { to: '/dashboard/integrations', label: 'Integrations', admin: true },
+  { to: '/dashboard/campaigns', label: 'Campaigns', admin: true },
   { to: '/dashboard/malls', label: 'Malls' },
+  { to: '/dashboard/team', label: 'Team', admin: true },
 ];
 
 export function DashboardLayout() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => { db.myMembership().then((m: any) => setRole(m?.role ?? null)).catch(() => setRole(null)); }, []);
+  const isAdmin = role === 'owner' || role === 'admin';
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white p-4 md:flex">
         <div className="px-2 py-2">
           <Wordmark />
-          <div className="mt-1 pl-9 text-xs font-medium text-slate-400">Brand Dashboard</div>
+          <div className="mt-1 flex items-center gap-2 pl-9 text-xs font-medium text-slate-400">
+            Brand Dashboard {role && <Badge>{role}</Badge>}
+          </div>
         </div>
         <nav className="mt-4 space-y-1">
-          {nav.map((n) => (
+          {nav.filter((n) => !n.admin || isAdmin).map((n) => (
             <NavLink
               key={n.to}
               to={n.to}

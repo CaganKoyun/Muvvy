@@ -67,6 +67,19 @@ export const db = {
     return malls ?? [];
   },
 
+  // ── brand: org, team, roles ──
+  createBrand: (name: string, slug: string) => rpc('create_brand', { p_name: name, p_slug: slug }),
+  myMembership: () => rpc('my_membership'),
+  teamMembers: () => rpc<any[]>('team_members'),
+  createInvite: (email: string, role: string, branchId?: string) =>
+    rpc('create_invite', { p_email: email, p_role: role, p_branch_id: branchId ?? null }),
+  listInvites: () => rpc<any[]>('list_invites'),
+  revokeInvite: (id: string) => rpc('revoke_invite', { p_id: id }),
+  acceptInvite: (token: string) => rpc('accept_invite', { p_token: token }),
+  updateMember: (profileId: string, role: string, branchId?: string) =>
+    rpc('update_member', { p_profile_id: profileId, p_role: role, p_branch_id: branchId ?? null }),
+  removeMember: (profileId: string) => rpc('remove_member', { p_profile_id: profileId }),
+
   // ── brand ──
   myMerchant,
   dashboard: () => rpc('merchant_dashboard'),

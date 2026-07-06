@@ -32,7 +32,8 @@ export default function DashLogin() {
           <Button className="w-full" disabled={busy}>{busy ? <Spinner /> : 'Sign in'}</Button>
         </form>
         <p className="mt-6 text-center text-xs text-slate-400">
-          Shopper? <Link to="/app/login" className="text-spark">Continue with Spark</Link>
+          New brand? <Link to="/dashboard/signup" className="text-spark">Create an account</Link>
+          {' · '}Shopper? <Link to="/app/login" className="text-spark">Continue with Spark</Link>
         </p>
       </Card>
     </div>

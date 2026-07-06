@@ -5,6 +5,9 @@ import Landing from './pages/Landing';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { AppLayout } from './layouts/AppLayout';
 import DashLogin from './pages/dashboard/Login';
+import Signup from './pages/dashboard/Signup';
+import AcceptInvite from './pages/dashboard/AcceptInvite';
+import Team from './pages/dashboard/Team';
 import Overview from './pages/dashboard/Overview';
 import Branches from './pages/dashboard/Branches';
 import BrandConsent from './pages/dashboard/BrandConsent';
@@ -44,6 +47,8 @@ export default function App() {
       <Route path="/" element={<Landing />} />
 
       <Route path="/dashboard/login" element={<DashLogin />} />
+      <Route path="/dashboard/signup" element={<Signup />} />
+      <Route path="/dashboard/accept" element={<AcceptInvite />} />
       <Route path="/dashboard" element={<RequireBrand><DashboardLayout /></RequireBrand>}>
         <Route index element={<Overview />} />
         <Route path="branches" element={<Branches />} />
@@ -53,6 +58,7 @@ export default function App() {
         <Route path="integrations" element={<Integrations />} />
         <Route path="campaigns" element={<Campaigns />} />
         <Route path="malls" element={<Malls />} />
+        <Route path="team" element={<Team />} />
       </Route>
 
       <Route path="/app/login" element={<AppLogin />} />
