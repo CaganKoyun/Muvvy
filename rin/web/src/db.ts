@@ -143,6 +143,16 @@ export const db = {
     return data ?? [];
   },
   mallDashboard: (id: string) => rpc('mall_dashboard', { p_mall_id: id }),
+
+  // ── billing ──
+  billingSummary: () => rpc('billing_summary'),
+  listPlans: () => rpc<any[]>('list_plans'),
+  async upgrade(planCode: string) {
+    // Try Stripe checkout; fall back to an immediate plan change in dev.
+    const { data } = await supabase.functions.invoke('create-checkout', { body: { plan_code: planCode } }).catch(() => ({ data: null } as any));
+    if (data?.configured && data.url) { window.location.href = data.url; return { redirected: true }; }
+    return rpc('change_plan', { p_code: planCode });
+  },
 };
 
 // Static catalogue for the Integrations screen.

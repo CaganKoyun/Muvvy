@@ -8,6 +8,7 @@ import DashLogin from './pages/dashboard/Login';
 import Signup from './pages/dashboard/Signup';
 import AcceptInvite from './pages/dashboard/AcceptInvite';
 import Team from './pages/dashboard/Team';
+import Billing from './pages/dashboard/Billing';
 import Overview from './pages/dashboard/Overview';
 import Branches from './pages/dashboard/Branches';
 import BrandConsent from './pages/dashboard/BrandConsent';
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="campaigns" element={<Campaigns />} />
         <Route path="malls" element={<Malls />} />
         <Route path="team" element={<Team />} />
+        <Route path="billing" element={<Billing />} />
       </Route>
 
       <Route path="/app/login" element={<AppLogin />} />

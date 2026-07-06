@@ -14,6 +14,7 @@ const nav = [
   { to: '/dashboard/campaigns', label: 'Campaigns', admin: true },
   { to: '/dashboard/malls', label: 'Malls' },
   { to: '/dashboard/team', label: 'Team', admin: true },
+  { to: '/dashboard/billing', label: 'Billing', admin: true },
 ];
 
 export function DashboardLayout() {
