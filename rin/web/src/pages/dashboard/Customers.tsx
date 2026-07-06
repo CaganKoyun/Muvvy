@@ -28,7 +28,9 @@ export default function Customers() {
                   <button onClick={() => open(c.grant_id)} className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-slate-50">
                     <div>
                       <div className="font-mono text-xs text-slate-500">#{String(c.grant_id).slice(0, 8)}</div>
-                      <div className="text-xs text-slate-400">member since {new Date(c.member_since).toLocaleDateString()}</div>
+                      <div className="text-xs text-slate-400">
+                        {c.branch ? `${c.branch.name} · ` : ''}since {new Date(c.member_since).toLocaleDateString()}
+                      </div>
                     </div>
                     <Badge tone={c.status === 'active' ? 'green' : 'rose'}>{c.status}</Badge>
                   </button>

@@ -36,7 +36,10 @@ export default function Overview() {
             {customers.map((c) => (
               <li key={c.grant_id} className="flex items-center justify-between px-5 py-3">
                 <div>
-                  <div className="font-mono text-xs text-slate-500">#{String(c.grant_id).slice(0, 8)}</div>
+                  <div className="font-mono text-xs text-slate-500">
+                    #{String(c.grant_id).slice(0, 8)}
+                    {c.branch && <span className="ml-2 font-sans text-slate-400">· {c.branch.name}</span>}
+                  </div>
                   <div className="mt-0.5 flex flex-wrap gap-1">
                     {(c.granted_scopes ?? []).map((s: string) => <Badge key={s} tone="indigo">{s.split(':')[1]}</Badge>)}
                   </div>
