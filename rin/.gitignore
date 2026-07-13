@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# local env — never commit real secrets
+.env
+.env.local
+
+# sqlite demo artifacts
+*.sqlite
+*.sqlite-journal
+
+# editor / OS
+.DS_Store
+.idea/
+*.tsbuildinfo

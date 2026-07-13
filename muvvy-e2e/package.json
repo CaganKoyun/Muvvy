@@ -1,0 +1,20 @@
+{
+  "name": "muvvy-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright functional test suite for Muvvy (search, lists, reviews/comments, likes, messages, co-watch).",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:anon": "playwright test smoke.anon",
+    "test:live": "E2E_MODE=live playwright test",
+    "test:mock": "E2E_MODE=mock playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen $BASE_URL"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
