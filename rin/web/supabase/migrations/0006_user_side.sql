@@ -38,16 +38,41 @@ begin
   return jsonb_build_object('revoked', v_count);
 end; $$;
 
--- Erase my personal data: revoke everything + null out PII (right to erasure).
--- Full auth-account deletion runs via an Edge Function with the service role.
+-- Right to erasure (KVKK md.7 / GDPR art.17): purge every personal record Spark
+-- holds about me, then clear all profile PII. The profile/consumer rows survive
+-- as empty skeletons so the still-authenticated session keeps working (this is
+-- "erase my data", not "delete my account"). Deleting the auth.users row itself
+-- (the login e-mail) needs the Auth admin API and is out of scope for a SQL RPC.
 create or replace function delete_my_data()
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare v_uid uuid := auth.uid();
+declare v_uid uuid := auth.uid(); v_purged int := 0; v_n int;
 begin
-  update consent_grants set status='revoked', revoked_at=now() where consumer_id=v_uid and status='active';
-  update consumer_profiles set first_name=null, last_name=null, phone=null, birthday=null, gender=null, address=null where profile_id=v_uid;
+  if v_uid is null then raise exception 'not authenticated'; end if;
+
+  -- Revoke every active grant FIRST so the sync trigger notifies each connected
+  -- brand's CRM to drop this customer, then delete the linkage rows outright
+  -- (the audit_log keeps the legal trail; deletion also lets me re-consent clean).
+  update consent_grants set status='revoked', revoked_at=now() where consumer_id = v_uid and status='active';
+  delete from consent_grants where consumer_id = v_uid;   get diagnostics v_n = row_count; v_purged := v_purged + v_n;
+
+  -- Wipe every personal record. Delete warranties before their parent receipts
+  -- so each is counted once (receipts still cascades to receipt_items).
+  delete from warranties    where consumer_id = v_uid;    get diagnostics v_n = row_count; v_purged := v_purged + v_n;
+  delete from receipts      where consumer_id = v_uid;    get diagnostics v_n = row_count; v_purged := v_purged + v_n;
+  delete from wallet_items  where consumer_id = v_uid;    get diagnostics v_n = row_count; v_purged := v_purged + v_n;
+  delete from memberships   where consumer_id = v_uid;    get diagnostics v_n = row_count; v_purged := v_purged + v_n;
+  delete from notifications where consumer_id = v_uid;    get diagnostics v_n = row_count; v_purged := v_purged + v_n;
+
+  -- Clear all PII the profile carries, including the display name (seeded from
+  -- the e-mail on signup) and the opt-in flags — no marketing after erasure.
+  update consumer_profiles
+     set first_name=null, last_name=null, phone=null, birthday=null, gender=null, address=null,
+         pref_marketing_email=false, pref_sms=false, pref_push=false, updated_at=now()
+   where profile_id = v_uid;
+  update profiles set display_name = null where id = v_uid;
+
   insert into audit_log(actor_type,actor_id,action,consumer_id) values ('consumer',v_uid,'data.erased',v_uid);
-  return jsonb_build_object('erased', true);
+  return jsonb_build_object('erased', true, 'records_purged', v_purged);
 end; $$;
 
 -- My loyalty memberships across brands.
