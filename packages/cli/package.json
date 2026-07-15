@@ -1,0 +1,28 @@
+{
+  "name": "@grid/cli",
+  "version": "0.1.0",
+  "description": "GRID CLI — grid init / validate / build / keygen / submit",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "bin": {
+    "grid": "./dist/bin.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@grid/manifest": "workspace:*",
+    "@grid/pack": "workspace:*"
+  },
+  "devDependencies": {
+    "@grid/registry": "workspace:*",
+    "fastify": "^5.2.0"
+  }
+}

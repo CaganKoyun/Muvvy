@@ -1,0 +1,17 @@
+{
+  "name": "@grid/manifest",
+  "version": "0.1.0",
+  "description": "W3C MiniApp manifest tipleri, doğrulayıcı ve linter (x-grid uzantılarıyla)",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  }
+}
